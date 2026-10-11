@@ -1,5 +1,7 @@
 # 学习通自动刷课脚本 V3.6
 
+# fix只修复了v3_optimized.user文件中的内容
+
 当前版本以 [v3_optimized.js](v3_optimized.js) 为唯一源码，油猴版 [v3_optimized.user.js](v3_optimized.user.js) 必须由 [scripts/build-userscript.mjs](scripts/build-userscript.mjs) 生成（不要手改油猴文件）。
 
 V3.4 在 V3.3 稳定版的基础上，针对线上 55 条反馈里最高频的六类缺陷做了收敛式修复。每处改动都能回溯到具体 issue 编号，细节见 [变更记录](../docs/CHANGELOG-v3.4.md)。
