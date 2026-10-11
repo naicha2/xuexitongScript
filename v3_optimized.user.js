@@ -9,6 +9,7 @@
 // @match        *://*.chaoxing.com/mooc2-ans/mycourse/studentstudy*
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
+// @connect      api.deepseek.com
 // @connect      opencode.ai
 // @connect      groupweb.chaoxing.com
 // ==/UserScript==
@@ -190,18 +191,11 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 // F10（V3.5）：LLM 互动题应答。默认关闭；开启后才会访问 llmEndpoint。
                 // 密钥只存内存：GUI 面板「设置 Key」或控制台 app.setLlmKey(...)。
                 llmEnabled: false,
-                llmEndpoint: 'https://opencode.ai/zen/go/v1/chat/completions',
-                // F53（V3.7）：默认模型改为当前 key 实测可用者。
-                // 真机教训：deepseek 家族（deepseek-flash / deepseek-v4-flash / deepseek-v4.1-flash）在本 key 上
-                // 被地区门禁挡住，返回 HTTP 403 RegionError：
-                //   "The latest version of this model is only available hosted in China and requires explicit opt in"
-                // 结果每次答题第 1 题就失败 → 只暂存不提交 → 停机等人工，整条自动答题链路形同停摆。
-                // 用户 2026-09-16 指定：**只用 deepseek 的 flash 模型、不切换模型**。
-                // 实测（同题同参数打网关）：`deepseek-flash` → finish=length 且 content 为空（配额全耗在 reasoning），
-                // 产不出答案；`deepseek-v4-flash` → 正常返回 {"answer":"B"}。故取后者（如需改回，改这一个字符串即可）。
-                // 原先主模型 minimax-m3 + 5 个降级模型（地区门禁/限流时自动切换）。现在降级链为空、开关关掉，
-                // 失败就走「60 秒心跳重试（最多 3 次）」→ 仍失败才安全兜底（只暂存不提交、停机等人工）。
-                llmModel: 'deepseek-v4-flash',
+                llmEndpoint: 'https://api.deepseek.com/chat/completions',
+                // F53（V3.7）：默认模型切回 DeepSeek 官方 API 当前可用的 flash 系列。
+                // 旧版写法里把请求默认打到 opencode 网关，会把用户的 DeepSeek key 送去错误的平台，直接返回 401。
+                // 现在默认改为 DeepSeek 官方接口；若用户仍需走网关，可手动改回 llmEndpoint。
+                llmModel: 'deepseek-flash',
                 // F53：主模型不可用（地区门禁 / 无权限 / 限流 / 5xx / 空响应 / 网络超时）时按序自动降级；
                 // 停在第一个可用模型并在本会话内粘性复用，全部失败才回退原有安全策略（上锁 + 只暂存不提交）。
                 llmModelFallbacks: [],
@@ -3881,10 +3875,18 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                         opts.onerror(new Error('当前环境没有 GM_xmlhttpRequest：请使用油猴版 v3_optimized.user.js，或先用 app.setLlmTransport(fn) 注入传输实现'));
                         return null;
                     }
+                    const isOpencodeGateway = /opencode\.ai/i.test(String(opts.url || ''));
+                    const headers = {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + this._llmApiKey,
+                    };
+                    if (isOpencodeGateway) {
+                        headers['x-opencode-session'] = this._llmSession();
+                    }
                     return gm({
                         method: opts.method,
                         url: opts.url,
-                        headers: opts.headers,
+                        headers: Object.assign(headers, opts.headers || {}),
                         data: opts.data,
                         timeout: opts.timeout,
                         onload: (res) => opts.onload(res && res.status, res && res.responseText),
@@ -3899,11 +3901,7 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                     handle = transport({
                         method: 'POST',
                         url: cfg.llmEndpoint,
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + this._llmApiKey,
-                            'x-opencode-session': this._llmSession(),
-                        },
+                        headers: undefined,
                         data: JSON.stringify(payload),
                         timeout: timeoutMs,
                         onload: (status, text) => {
