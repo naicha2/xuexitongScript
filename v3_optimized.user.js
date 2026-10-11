@@ -971,7 +971,12 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                     // 若放在判空之后，这个场景永远探测不到。
                     if (this._maybeSkipOnVideoFailText()) return;
                     const video = this._getVideoEl();
-                    if (!video) return;
+                    if (!video) {
+                        if (this._videoTaskAllComplete && this._currentStepTitle() === '视频') {
+                            this._handleNoVideoNode();
+                        }
+                        return;
+                    }
                     const now = Date.now();
                     const current = Number(video.currentTime || 0);
 
