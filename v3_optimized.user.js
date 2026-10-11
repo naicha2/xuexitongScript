@@ -111,6 +111,8 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 // 有倍速需求可手动调高：app.configs.playbackRate = 2; app.run()。
                 // 本脚本只设置一次播放倍速，**不做任何 ratechange 强制回写对抗**（那是 #32 #54 反复暂停/风控的来源）。
                 playbackRate: 1.0,
+                // F4：默认自动静音播放，只有用户明确选过静音状态时才沿用用户偏好。
+                videoAutoMute: true,
                 autoplay: true,
                 retryInterval: 2000,
                 maxRetries: 10,
@@ -871,12 +873,21 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 this._muteHandler = null;
             },
             _applyUserMuteChoice(video) {
-                if (!video || this._userMutedChoice === null || this._userMutedChoice === undefined) return;
-                if (video.muted === this._userMutedChoice) return;
-                this._lastScriptMutedValue = this._userMutedChoice;
-                video.muted = this._userMutedChoice;
-                console.log(`%c沿用用户此前选择的${this._userMutedChoice ? '静音' : '非静音'}状态`, 'color:#607D8B');
-            },            resumeAutoPlay() {
+                if (!video) return;
+                if (this._userMutedChoice === true || this._userMutedChoice === false) {
+                    if (video.muted === this._userMutedChoice) return;
+                    this._lastScriptMutedValue = this._userMutedChoice;
+                    video.muted = this._userMutedChoice;
+                    console.log(`%c沿用用户此前选择的${this._userMutedChoice ? '静音' : '非静音'}状态`, 'color:#607D8B');
+                    return;
+                }
+                if (this.configs.videoAutoMute !== false && !video.muted) {
+                    this._lastScriptMutedValue = true;
+                    video.muted = true;
+                    console.log('%c未检测到用户静音偏好，已默认静音播放', 'color:#607D8B');
+                }
+            },
+            resumeAutoPlay() {
                 // F4（#32）：用户在播放器里主动暂停后，脚本停止抢播；需要恢复保活时调用本方法。
                 this._userPaused = false;
                 this._guardLastWallTs = Date.now();
