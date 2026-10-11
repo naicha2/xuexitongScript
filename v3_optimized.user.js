@@ -113,6 +113,8 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 playbackRate: 1.0,
                 // F4：默认自动静音播放，只有用户明确选过静音状态时才沿用用户偏好。
                 videoAutoMute: true,
+                // 只看视频：遇到非视频任务点时直接跳过，不做题、不写答案。
+                videoOnlyMode: false,
                 autoplay: true,
                 retryInterval: 2000,
                 maxRetries: 10,
@@ -193,6 +195,8 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 // F10（V3.5）：LLM 互动题应答。默认关闭；开启后才会访问 llmEndpoint。
                 // 密钥只存内存：GUI 面板「设置 Key」或控制台 app.setLlmKey(...)。
                 llmEnabled: false,
+                // DeepSeek 深度思考：在请求体里附加 thinking / reasoning_effort 顶层参数。
+                llmThinkingEnabled: false,
                 llmEndpoint: 'https://api.deepseek.com/chat/completions',
                 // F53（V3.7）：默认模型切回 DeepSeek 官方 API 当前可用的 flash 系列。
                 // 旧版写法里把请求默认打到 opencode 网关，会把用户的 DeepSeek key 送去错误的平台，直接返回 401。
@@ -1129,6 +1133,14 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                         if (this._isLiveNode()) {
                             this._stopForLiveNode();
                             return;
+                        }
+                        if (this.configs.videoOnlyMode && this._currentStepTitle() !== '视频') {
+                            const taskKind = this._getTaskKind();
+                            if (taskKind !== 'video') {
+                                console.log('%c[只看视频] 检测到 ' + taskKind + ' 任务点，已跳过到下一节点', 'color:#FF9800');
+                                this.nextUnit();
+                                return;
+                            }
                         }
                         // F38（V3.6 补丁）：本小节视频任务点已全部完成（平台已标记/上次播放遗留）时，
                         // 不能再按「视频组件尚未加载完成」重试到触顶（真机：第7章第3节死循环）——
@@ -3414,12 +3426,22 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                     }
                     this._guiRefreshStatus(true);
                 }, 'pause');
+                addBtn('只看视频关', '切换只看视频模式：开启后跳过做题任务点，只保留视频任务点', () => {
+                    this.configs.videoOnlyMode = !this.configs.videoOnlyMode;
+                    console.log('%c[GUI] 只看视频模式已' + (this.configs.videoOnlyMode ? '开启' : '关闭'), 'color:#2196F3');
+                    this._guiRefreshStatus(true);
+                }, 'videoOnly');
                 addBtn('下一节', '立即切换到下一小节', () => this.nextUnit(), 'next');
                 addBtn('LLM 已关', '切换 llmEnabled（默认关闭）', () => {
                     this.configs.llmEnabled = !this.configs.llmEnabled;
                     console.log('%c[GUI] LLM 应答已' + (this.configs.llmEnabled ? '开启' : '关闭'), 'color:#2196F3');
                     this._guiRefreshStatus(true);
                 }, 'llm');
+                addBtn('深度思考关', '切换 LLM 深度思考（DeepSeek thinking / reasoning_effort）', () => {
+                    this.configs.llmThinkingEnabled = !this.configs.llmThinkingEnabled;
+                    console.log('%c[GUI] LLM 深度思考已' + (this.configs.llmThinkingEnabled ? '开启' : '关闭'), 'color:#2196F3');
+                    this._guiRefreshStatus(true);
+                }, 'thinking');
                 addBtn('自动提交关', '切换 llmAutoSubmit（默认关闭：先选答案再人工提交）', () => {
                     this.configs.llmAutoSubmit = !this.configs.llmAutoSubmit;
                     console.log('%c[GUI] LLM 自动提交已' + (this.configs.llmAutoSubmit ? '开启' : '关闭'), 'color:#2196F3');
@@ -3583,7 +3605,9 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                     lines.push('LLM ' + (this.configs.llmEnabled ? '开' : '关')
                         + ' ｜ 密钥 ' + (this._llmApiKey ? '已配置' : '未配置')
                         + ' ｜ 已应答 ' + this._llmAnswersThisSession + '/' + this.configs.llmMaxAnswersPerSession
-                        + ' ｜ 自动提交 ' + (this.configs.llmAutoSubmit ? '开' : '关'));
+                        + ' ｜ 自动提交 ' + (this.configs.llmAutoSubmit ? '开' : '关')
+                        + ' ｜ 深度思考 ' + (this.configs.llmThinkingEnabled ? '开' : '关')
+                        + ' ｜ 只看视频 ' + (this.configs.videoOnlyMode ? '开' : '关'));
                     if (this._llmLastAnswer) lines.push('最近答案 ' + String(this._llmLastAnswer.q || '').slice(0, 16) + ' → ' + this._llmLastAnswer.a);
                     if (this._llmChapterSuggestedCount) lines.push('章节测验建议 ' + this._llmChapterSuggestedCount + ' 题（仅提示）');
                     this._guiStatusEl.textContent = lines.join('\n');
@@ -3596,6 +3620,8 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                         b.style.color = on ? '#86efac' : '#e2e8f0';
                     };
                     setToggle('pause', !this._isPlaying, '继续播放', '暂停播放');
+                    setToggle('videoOnly', !!this.configs.videoOnlyMode, '只看视频开', '只看视频关');
+                    setToggle('thinking', !!this.configs.llmThinkingEnabled, '深度思考开', '深度思考关');
                     setToggle('llm', !!this.configs.llmEnabled, 'LLM 已开', 'LLM 已关');
                     setToggle('submit', !!this.configs.llmAutoSubmit, '自动提交开', '自动提交关');
                 } catch (e) { /* GUI 绝不影响主流程 */ }
@@ -4163,6 +4189,10 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                     max_tokens: Math.max(256, Number(this.configs.llmMaxTokens) || 4096),
                     temperature: 0,
                 };
+                if (this.configs.llmThinkingEnabled !== false && /deepseek/i.test(String(this.configs.llmEndpoint || '') + ' ' + String(this.configs.llmModel || ''))) {
+                    payload.thinking = { type: 'enabled' };
+                    payload.reasoning_effort = 'max';
+                }
                 if (this.configs.llmJsonMode !== false) {
                     payload.response_format = { type: 'json_object' };
                 }
