@@ -3195,6 +3195,10 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 if (this._isChapterTest()) return null;
                 const found = this._findInteractionDialog(document, 0);
                 if (found) {
+                    if (this._shouldIgnoreVideoInteraction(found)) {
+                        console.warn('%c[视频弹题] 检测到无需完成的互动题提示，已忽略并继续推进。', 'color:#FF9800');
+                        return null;
+                    }
                     // F10（V3.5）：仅当显式开启 LLM 且配置齐全时尝试自动选择；失败一律回退「暂停等人工」。
                     if (!this._interactionBlocked && this._canLlmAnswer(found)) {
                         this._answerInteractionWithLlm(found);
@@ -3214,6 +3218,14 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                     this.play();
                 }
                 return found;
+            },
+            _shouldIgnoreVideoInteraction(found) {
+                if (!found || this._currentStepTitle() !== '视频') return false;
+                const text = String(found.questionText || found.text || '').replace(/\s+/g, ' ').trim();
+                if (!text) return false;
+                // 只忽略明确写了“无需完成/无需作答/只是提示”的视频弹题文案；
+                // 这类题目不是课程考核项，不能阻塞自动播放。
+                return /需要手动完成互动题|按设计不会自动答题|无需作答|不需要完成|仅用于确认|确认继续|继续观看|是否继续|是否跳过|跳过本题/i.test(text);
             },
             _blockInteractionForManual(found) {
                 this._interactionBlocked = true;
@@ -4434,6 +4446,10 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 return true;
             },
             _answerInteractionWithLlm(found) {
+                if (this._shouldIgnoreVideoInteraction(found)) {
+                    console.warn('%c[LLM] 检测到无需完成的互动题提示，跳过自动作答。', 'color:#FF9800');
+                    return;
+                }
                 const rawFull = String(found.questionText || found.text || '');
                 // F56：已全部答对就别再答一遍 —— 既省 LLM 调用，也避免对已答对的多选题再点一次把选项点掉。
                 const progress = this._quizProgress(rawFull);
