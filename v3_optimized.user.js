@@ -453,23 +453,28 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 // F46（V3.6）：本节点有多个任务点（平台任务点标签页 #prev_tab）且当前显示的那个已完成时，
                 // 先切到还没核验的任务点标签再跳转，否则后续任务点（如「章节测验」）会被整体漏掉。
                 if (this._handleTaskTabs()) return;
-                // F11（V3.6）：当前小节还有未完成的内嵌章节测验/作业时，先把作业处理完再跳转（修复「视频+作业」双任务点组合被跳过）。
-                if (this._hasUnfinishedEmbeddedWork()) {
-                    console.log('%c当前小节还有未完成的内嵌章节测验/作业，先处理作业再跳转', 'color:#FF9800');
-                    this._handleEmbeddedWorks();
-                    return;
-                }
-                // F13（V3.6）：当前小节还有未完成的文档任务点（PDF/PPT/教案）时，先翻阅完再跳转。
-                if (this._hasUnfinishedDocTask()) {
-                    console.log('%c当前小节还有未完成的文档任务点（PDF/PPT），先翻阅再跳转', 'color:#FF9800');
-                    this._handleDocTasks();
-                    return;
-                }
-                // F45（V3.6）：当前小节还有未完成的讨论任务点（insertbbs/BBS）时，先自动参与讨论再跳转。
-                if (this._hasUnfinishedDiscussTask()) {
-                    console.log('%c当前小节还有未完成的讨论任务点（BBS），先参与讨论再跳转', 'color:#FF9800');
-                    this._handleDiscussTasks();
-                    return;
+                // F82（V3.7 补丁）：只看视频模式下，下面三类「非视频任务点」处理器一律不执行 ——
+                // 它们会停在题面/文档/讨论的交互上等人工（"绝不跳过"），与只看视频的预期相反；
+                // 命中跳过时本函数继续落到下方的导航逻辑，推进到下一节点。
+                if (!this._videoOnlySkipNonVideoTasks()) {
+                    // F11（V3.6）：当前小节还有未完成的内嵌章节测验/作业时，先把作业处理完再跳转（修复「视频+作业」双任务点组合被跳过）。
+                    if (this._hasUnfinishedEmbeddedWork()) {
+                        console.log('%c当前小节还有未完成的内嵌章节测验/作业，先处理作业再跳转', 'color:#FF9800');
+                        this._handleEmbeddedWorks();
+                        return;
+                    }
+                    // F13（V3.6）：当前小节还有未完成的文档任务点（PDF/PPT/教案）时，先翻阅完再跳转。
+                    if (this._hasUnfinishedDocTask()) {
+                        console.log('%c当前小节还有未完成的文档任务点（PDF/PPT），先翻阅再跳转', 'color:#FF9800');
+                        this._handleDocTasks();
+                        return;
+                    }
+                    // F45（V3.6）：当前小节还有未完成的讨论任务点（insertbbs/BBS）时，先自动参与讨论再跳转。
+                    if (this._hasUnfinishedDiscussTask()) {
+                        console.log('%c当前小节还有未完成的讨论任务点（BBS），先参与讨论再跳转', 'color:#FF9800');
+                        this._handleDiscussTasks();
+                        return;
+                    }
                 }
                 // t6：进入 nextUnit 前先取消任何待执行的「视频结束自动跳转」，避免旧定时器把刚打开的小节又跳一次。
                 this._cancelDelayedNextUnit('进入 nextUnit');
@@ -1161,21 +1166,25 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                         }
                         // F46（V3.6）：多任务点节点先切到未核验的任务点标签（见 _handleTaskTabs 注释）
                         if (this._handleTaskTabs()) return;
-                        // F11（V3.6）：未完成的内嵌章节测验/作业优先处理，绝不跳过
-                        // （修复真机演练发现的「autoAdvanceNoVideo 把章节检验当未知节点跳过」问题）。
-                        if (this._hasUnfinishedEmbeddedWork()) {
-                            this._handleEmbeddedWorks();
-                            return;
-                        }
-                        // F13（V3.6）：未完成的文档任务点（PDF/PPT/教案）自动翻阅（真机演练：教案节点被判「无法识别」跳过）。
-                        if (this._hasUnfinishedDocTask()) {
-                            this._handleDocTasks();
-                            return;
-                        }
-                        // F45（V3.6）：未完成的讨论任务点（BBS）自动参与，绝不当作未知节点跳过。
-                        if (this._hasUnfinishedDiscussTask()) {
-                            this._handleDiscussTasks();
-                            return;
+                        // F82（V3.7 补丁）：只看视频模式下不进入下面三类「非视频任务点」处理器（它们会停下来等人工），
+                        // 直接落到后续的步骤切换/无视频推进逻辑，跳过本节点。
+                        if (!this._videoOnlySkipNonVideoTasks()) {
+                            // F11（V3.6）：未完成的内嵌章节测验/作业优先处理，绝不跳过
+                            // （修复真机演练发现的「autoAdvanceNoVideo 把章节检验当未知节点跳过」问题）。
+                            if (this._hasUnfinishedEmbeddedWork()) {
+                                this._handleEmbeddedWorks();
+                                return;
+                            }
+                            // F13（V3.6）：未完成的文档任务点（PDF/PPT/教案）自动翻阅（真机演练：教案节点被判「无法识别」跳过）。
+                            if (this._hasUnfinishedDocTask()) {
+                                this._handleDocTasks();
+                                return;
+                            }
+                            // F45（V3.6）：未完成的讨论任务点（BBS）自动参与，绝不当作未知节点跳过。
+                            if (this._hasUnfinishedDiscussTask()) {
+                                this._handleDiscussTasks();
+                                return;
+                            }
                         }
                         if (this._advanceLearningStep()) {
                             console.log('%c当前不在视频页，已尝试切到下一学习步骤，2秒后重试', 'color:#607D8B');
@@ -1394,6 +1403,35 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 } catch (e) { /* ignore */ }
                 return false;
             },
+            // ================= F82（V3.7 补丁）：只看视频模式的「非视频任务点」统一跳过 =================
+            // 真机背景：videoOnlyMode 开启后进入答题页仍被拦住并提示
+            //「检测到 1 个未完成的内嵌章节测验/作业：按当前配置不自动作答，已停止自动前进（绝不跳过）」——
+            // 原因是 play()/nextUnit() 里的三类任务点处理器（内嵌测验/作业、文档、讨论）与「只看视频」无关：
+            // 它们会在题面/文档/讨论上停下来等人工，把自动链路卡死。
+            // 返回 true = 已按只看视频模式跳过，调用方应继续走推进逻辑，不要调用这三类处理器。
+            // 判据与三个处理器完全一致；只看视频关闭时本函数恒为 false，既有行为完全不变。
+            _videoOnlySkipNonVideoTasks() {
+                if (!this.configs.videoOnlyMode) return false;
+                let kind = '';
+                try {
+                    if (this._hasUnfinishedEmbeddedWork()) kind = '内嵌章节测验/作业';
+                    else if (this._hasUnfinishedDocTask()) kind = '文档任务点（PDF/PPT）';
+                    else if (this._hasUnfinishedDiscussTask()) kind = '讨论任务点（BBS）';
+                } catch (e) { kind = ''; }
+                if (!kind) return false;
+                // 同节点重复进入时只播报一次（键随节点变化），避免轮询链把日志刷屏。
+                const key = 'vo:' + String(this._currentStepTitle() || '') + '#' + String(this._nodeUnfinishCount());
+                if (this._videoOnlySkipLoggedKey !== key) {
+                    this._videoOnlySkipLoggedKey = key;
+                    console.log('%c[只看视频] 检测到未完成的' + kind + '：按只看视频模式不处理、不等待，直接跳过并继续推进（需要完成请先关闭「只看视频」）', 'color:#FF9800');
+                }
+                return true;
+            },
+            _isVideoTaskTabTitle(title) {
+                // F82：任务点标签标题的视频判定 —— 平台标签文案即任务类型（「视频」「章节测验」等），
+                // 用宽匹配（视频/音视频/音频/录像）只放过视频类标签，其余在只看视频模式下不进入。
+                return /视频|音频|录像|video/i.test(String(title || ''));
+            },
             _handleTaskTabs() {
                 const tabs = this._taskTabs();
                 if (tabs.length <= 1) return false;                       // 单任务点节点：走原逻辑
@@ -1409,6 +1447,13 @@ window.__XT_FONT_MAP_B64 = 'U8JznH0Kitfq2j1ASTNJjwAAnplxvWFNrqQJItYYkzKDewCySJpU
                 for (const t of tabs) {
                     if (t.active) continue;
                     if (this._taskTabChecked[t.index]) continue;
+                    // F82（V3.7 补丁）：只看视频模式下，非视频任务点的标签不进入（进入后只会被对应处理器拦住等人工），
+                    // 记为已核验并继续扫描；若本节剩余标签全为非视频，循环结束返回 false，让调用方直接推进下一节点。
+                    if (this.configs.videoOnlyMode && !this._isVideoTaskTabTitle(t.title)) {
+                        this._taskTabChecked[t.index] = true;
+                        console.log('%c[只看视频] 跳过非视频任务点标签 ' + t.index + '/' + total + '（' + t.title + '），不进入', 'color:#FF9800');
+                        continue;
+                    }
                     this._taskTabChecked[t.index] = true;
                     console.log('%c[任务点标签] 切换任务点 ' + t.index + '/' + total + '（' + t.title + '）——多任务点节点必须逐个进入，否则会被漏掉', 'color:#2196F3');
                     try {
